@@ -4,34 +4,57 @@
 // To see an extended Error Stack Trace, uncomment
 // Error.stackTraceLimit = 9000;
 
-var 
-	path = require('path'),
-	fs = require('fs'),
-	chalk = require('chalk'),
-	_ = require('lodash'),
+// REQUIRES -------------------------------------------------------------------
+//
+// Note: Gulp related requires are made further down to speed up the first
+// part of this script
 
-	Liftoff = require('liftoff'),
-	argv = require('minimist')(process.argv.slice(2)),
-	gulp = require('gulp'),
-	gulpFile = require(path.join(path.dirname(fs.realpathSync(__filename)), '../gulpfile.js'))
+var 
+	path                = require('path'),
+	fs                  = require('fs'),
+	chalk               = require('chalk'),
+	_                   = require('lodash'),
+
+	pkg                 = require('../package.json'),
+	Liftoff             = require('liftoff'),
+	updateNotifier      = require('update-notifier'),
+	argv                = require('minimist')(process.argv.slice(2)),
+	gulp,
+	gulpFile
 ;
 
-// CLI configuration ----------------------------------------------------------
+// CLI CONFIGURATION ----------------------------------------------------------
 //
 
 var cli = new Liftoff({
-	name: 'headstart',
-	// completions: require('../lib/completion') TODO
-}).on('require', function (name, module) {
-	console.log(chalk.grey('Requiring external module: '+name+'...'));
-	if (name === 'coffee-script') {
-		module.register();
-	}
-}).on('requireFail', function (name, err) {
-	console.log(chalk.black.bgRed('Unable to load:', name, err));
+	name: 'headstart'
 });
 
-// Launch CLI -----------------------------------------------------------------
+// CHECK FOR UPDATES ----------------------------------------------------------
+//
+
+var notifier = updateNotifier({
+	packageName:    pkg.name,
+	packageVersion: pkg.version
+});
+
+if (notifier.update) {
+	// Inlined from the update-notifier source for more control
+	console.log(
+		chalk.yellow('\n\n┌──────────────────────────────────────────┐\n|') +
+		chalk.white(' Update available: ') +
+		chalk.green(notifier.update.latest) +
+		chalk.grey(' (current: ' + notifier.update.current + ') ') +
+		chalk.yellow('|\n|') +
+		chalk.white(' Instructions can be found on:            ') +
+		chalk.yellow('|\n|') +
+		chalk.magenta(' http://headstart.io/upgrading-guide   ') +
+		chalk.yellow('|\n') +
+		chalk.yellow('└──────────────────────────────────────────┘\n')
+	);
+}
+
+// LAUNCH CLI -----------------------------------------------------------------
 //
 
 cli.launch({}, launcher);
@@ -39,23 +62,23 @@ cli.launch({}, launcher);
 function launcher (env) {
 
 	var 
-		cliPackage = require('../package'),
-		versionFlag = argv.v || argv.version,
+		versionFlag  = argv.v || argv.version,
+		infoFlag     = argv.i || argv.info || argv.h || argv.help,
 
-		allowedTasks = ['init', 'build', 'i', 'info'],
-		task = argv._,
-		numTasks = task.length
+		allowedTasks = ['init', 'build'],
+		task         = argv._,
+		numTasks     = task.length
 	;
 
 	// Check for version flag
 	if (versionFlag) {
-		console.log('Headstart CLI version', cliPackage.version);
+		logHeader(pkg);
 		process.exit(0);
 	}
 
 	// Log info if no tasks are passed in
 	if (!numTasks) {
-		logInfo(cliPackage);
+		logInfo(pkg);
 		process.exit(0);
 	}
 
@@ -70,8 +93,8 @@ function launcher (env) {
 	task = task[0];
 
 	// Print info if needed
-	if(task === 'i' || task === 'info') {
-		logInfo(cliPackage);
+	if(infoFlag) {
+		logInfo(pkg);
 		process.exit(0);
 	}
 
@@ -87,78 +110,81 @@ function launcher (env) {
 		process.chdir(env.cwd);
 		console.log(chalk.cyan('Working directory changed to', chalk.magenta(env.cwd)));
 	}
+	
+	// Require gulp assets
+	gulp     = require('gulp');
+	gulpFile = require(path.join(path.dirname(fs.realpathSync(__filename)), '../gulpfile.js'));
 
 	// Start the task through Gulp
-	process.nextTick(function() {
+	process.nextTick(function () {
 		gulp.start.apply(gulp, [task]);
 	});
 }
 
-// Helper logging functions ---------------------------------------------------
+// HELPER FUNCTIONS -----------------------------------------------------------
 //
 
-function logInfo (cliPackage) {
-	console.log(chalk.cyan(
-		'\n' +
-		'MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM\n' +
-		'MMMMMMMMMMMMMMMMKo;\'..         .\':d0WMMM\n' +
-		'MMMMMMMMMMMMMNo.  ..\',,;;:::;;,\'.   .:0M\n' +
-		'MMMMMMMMMMMMx  .dKWMMMMMMMMMMMMMMWXx,  o\n' +
-		'MMMMMMMMMMMl  oWMMNl  WMMMMMMMMMMMMMM;  \n' +
-		'MMMMMMMMMMk  lMMMMWd:dWMMMMMMMMMMMMMK. ,\n' +
-		'MMMMMMMMMM; .NMMMMMMMMMMMMMMMMMMMMNl  ,X\n' +
-		'MMMMMMMMMX. .oc;cNMMMMMMMMMMMMMMMO. .kMM\n' +
-		'MMNxo:,..    .\';oWMMMMMMMMMMMMMMW. .NMMM\n' +
-		'MM0\'\';codk\' .NNKOKMMMMMMMMMMMMMMK  cMMMM\n' +
-		'MMMMWNKOdl.      .KMMMMMMMMMMMMMN. ;MMMM\n' +
-		'd:,.     .\'  .k0XWMMMMMMMMMMMMMMM, .NMMM\n' +
-		'l:coxOKNWWN,  cc;\',OMMMMMMMMMMMMMo  OMMM\n' +
-		'MMMMMMN:.      .:lxNMMMMMMMMMMMMMo  OMMM\n' +
-		'MMMMMMWkdxOKK\' .xWMMMMMMMMMMMMMMO. ,WMMM\n' +
-		'MMMMMMMMMMMMMWo  .o0WMMMMMMMN0o\'  :NMMMM\n' +
-		'MMMMMMMMMMMMMMMNo.   .\'\'\'...   \'lKMMMMMM\n' +
-		'MMMMMMMMMMMMMMMMMMKo,.    .\':xXMMMMMMMMM\n' +
-		'MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM\n',
-		chalk.grey('\nv' + cliPackage.version + '\nA worry-free front-end workflow\n' +
-		'➳  http://headstart.flovan.me\n' +
-		'\n' +
-		'-------\n')
-	));
+function logInfo (pkg) {
+	logHeader(pkg);
 	logTasks();
 }
 
+function logHeader (pkg) {
+	console.log(
+		chalk.cyan(
+			'\n' +
+			'|                  |     |              |\n' +
+			'|---.,---.,---.,---|,---.|--- ,---.,---.|---\n' +
+			'|   ||---\',---||   |`---.|    ,---||    |\n' +
+			'`   \'`---\'`---^`---\'`---\'`---\'`---^`    `---\'\n\n'
+		) +
+		chalk.cyan.inverse('➳  http://headstart.io') +
+		'                 ' +
+		chalk.yellow.inverse('v' + pkg.version) + '\n'
+	);
+}
+
 function logTasks () {
-	console.log('Please use one of the following tasks:\n');
 	console.log(
-		chalk.magenta('init'),
-		'\t\tAdd the boilerplate files to the current directory'
+		chalk.grey.underline('To start a new project, run:\n\n') +
+		chalk.magenta('headstart init [flags]') +
+		chalk.grey(' or ') +
+		chalk.magenta('hs init [flags]\n\n') +
+		chalk.white('--base <source>') +
+		chalk.grey('\t\tUse a custom boilerplate repo, eg. user/repo#branch\n')
 	);
 	console.log(
-		chalk.magenta('build'),
-		'\t\tBuild the project\n',
-		chalk.grey('--production'),
-		'\tMake a production ready build\n',
-		chalk.grey('--serve'),
-		'\tServe the files on a static address\n',
-		chalk.grey('--open'),
-		'\tOpen up a browser for you (default Google Chrome)\n',
-		chalk.grey('--edit'),
-		'\tOpen the files in your editor (default Sublime Text)\n',
-		chalk.grey('--nolr'),
-		'\tDisables the livereload snippet\n',
-		chalk.grey('--onlyassets'),
-		'\tOnly build the assets\n'
+		chalk.grey.underline('To build the project, run:\n\n') +
+		chalk.magenta('headstart build [flags]') +
+		chalk.grey(' or ') +
+		chalk.magenta('hs build [flags]\n\n') +
+		chalk.white('--s, --serve') +
+		chalk.grey('\t\tServe the files on a static address\n') +
+		chalk.white('--o, --open') +
+		chalk.grey('\t\tOpen up a browser for you (default Google Chrome)\n') +
+		chalk.white('--e, --edit') +
+		chalk.grey('\t\tOpen the files in your editor (default Sublime Text)\n') +
+		chalk.white('--p, --production') +
+		chalk.grey('\tMake a production ready build\n') +
+		chalk.white('--t, --tunnel') +
+		chalk.grey('\t\tTunnel your served files to the web (requires --serve)\n') +
+		chalk.white('--psi') +
+		chalk.grey('\t\t\tRun PageSpeed Insights (requires --serve and --tunnel)\n') +
+		//chalk.white('--key <key>') +
+		//chalk.grey('\t\tOptional, an API key for PSI\n') +
+		chalk.white('--strategy <type>') +
+		chalk.grey('\tRun PSI in either "desktop" (default) or "mobile" mode\n\n') +
+		chalk.white('--verbose') +
+		chalk.grey('\t\tOutput extra information while building\n')
 	);
 	console.log(
-		chalk.magenta('i'),
-		'or',
-		chalk.magenta('info'),
-		'to print out this message'
-	);
-	console.log(
-		chalk.magenta('-v'),
-		'or',
-		chalk.magenta('--version'),
-		'to print out the version of your Headstart CLI\n'
+		chalk.grey.underline('For information, run:\n\n') +
+		chalk.magenta('headstart [flags]') +
+		chalk.grey(' or ') +
+		chalk.magenta('hs [flags]\n\n') +
+		chalk.white('--i, --info,\n--h, --help') +
+		chalk.grey('\t\tPrint out this message\n') +
+		chalk.white('--v, --version') +
+		chalk.grey('\t\tPrint out version\n')
 	);
 }
